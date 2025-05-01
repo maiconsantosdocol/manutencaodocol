@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Sistema de Login e Cadastro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    .tela { display: none; }
+    .ativa { display: block; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px; border: 1px solid black; text-align: left; }
+    .excluir { cursor: pointer; color: red; font-weight: bold; }
+    .btn-aprovar { cursor: pointer; color: green; font-weight: bold; }
+    .btn-rejeitar { cursor: pointer; color: red; font-weight: bold; }
+  </style>
+
+  <!-- Adicionar a biblioteca XLSX -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+
+</head>
+<body>
+
+  <!-- TELA 1: LOGIN -->
+  <div id="tela1" class="tela ativa">
+    <h1>DOCOL MANUTENÇÃO</h1>
+    <h2>Solicitação de compra</h2>
+    <form id="formLogin">
+      <label for="usuario">Usuário:</label><br>
+      <input type="text" id="usuario" required><br><br>
+      <label for="senha">Senha:</label><br>
+      <input type="password" id="senha" required><br><br>
+      <input type="submit" value="Entrar">
+    </form>
+    <br>
+    <button id="btnCadastro">Cadastrar-se</button>
+    <button id="btnAprovacao">Aprova</button>
+    <button onclick="mostrarTela('telaAprovadas')">Solicitações Aprovadas</button>
+  </div>
+
+  <!-- TELA 2: CADASTRO -->
+  <div id="telaCadastro" class="tela">
+    <h3>Cadastro de Usuário</h3>
+    <form id="formCadastro">
+      <label>Novo Usuário:</label><br>
+      <input type="text" id="novoUsuario" required><br><br>
+      <label>Senha:</label><br>
+      <input type="password" id="novaSenha" required><br><br>
+      <label>Nível de Acesso (0 a 5):</label><br>
+      <input type="number" id="nivelAcesso" min="0" max="5" required><br><br>
+      <input type="submit" value="Cadastrar">
+    </form>
+    <h4>Usuários Cadastrados:</h4>
+    <table id="tabelaUsuarios">
+      <thead>
+        <tr>
+          <th>Usuário</th>
+          <th>Senha</th>
+          <th>Nível</th>
+          <th>Ação</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <br>
+    <button onclick="mostrarTela('tela1')">Voltar</button>
+  </div>
+
+  <!-- TELA 3: SOLICITAÇÃO -->
+  <div id="telaSolicitacao" class="tela">
+    <h3>Solicitação de Material</h3>
+    <p>Bem-vindo, <span id="usuarioLogado"></span>!</p>
+    <form id="formSolicitacao">
+      <label>Objeto Técnico:</label><input type="text" id="objetoTecnico" required><br><br>
+      <label>O Quê:</label><input type="text" id="oQue" required><br><br>
+      <label>Quantidade:</label><input type="number" id="quantidade" required><br><br>
+      <label>Por Quê:</label><input type="text" id="porQue" required><br><br>
+      <label>Quando:</label><input type="text" id="quando" required><br><br>
+      <label>Como:</label><input type="text" id="como" required><br><br>
+      <label>CC/Entrega:</label><input type="number" id="ccEntrega" required><br><br>
+      <label>OM:</label><input type="number" id="om" required><br><br>
+      <label>Solicitante:</label><input type="text" id="solicitante" required><br><br>
+      <label>Supervisor:</label><input type="text" id="supervisor" required><br><br>
+      <button type="submit">Enviar Solicitação</button>
+    </form>
+    <br>
+    <button onclick="mostrarTela('tela1')">Voltar</button>
+  </div>
+
+  <!-- TELA 4: APROVAÇÃO -->
+<div id="telaAprovacao" class="tela">
+  <h3>Aprovar Solicitações</h3>
+  <table id="tabelaAprovar">
+    <thead>
+      <tr>
+        <th>Objeto Técnico</th><th>O Quê</th><th>Quantidade</th><th>Por Quê</th><th>Quando</th>
+        <th>Como</th><th>CC/Entrega</th><th>OM</th><th>Solicitante</th><th>Supervisor</th><th>Ações</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <br>
+  <button onclick="mostrarTela('tela1')">Voltar</button>
+</div>
+
+
+  <!-- TELA 5: APROVADAS -->
+  <div id="telaAprovadas" class="tela">
+    <h3>Solicitações Aprovadas</h3>
+      <button class="btn-exportar" onclick="exportarParaExcel()">📊 Exportar para Excel</button>
+    <table id="tabelaAprovadas">
+      <thead>
+        <tr>
+          <th>Objeto Técnico</th><th>O Quê</th><th>Quantidade</th><th>Por Quê</th><th>Quando</th>
+          <th>Como</th><th>CC/Entrega</th><th>OM</th><th>Solicitante</th><th>Supervisor</th><th>Data</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <br>
+    <button onclick="mostrarTela('tela1')">Voltar</button>
+  </div>
+
+  <script>
+
+    // Carrega os dados de usuários, solicitações aprovadas e pendentes do localStorage ou inicializa como vazio
+    let usuariosCadastrados = JSON.parse(localStorage.getItem("usuarios")) || [];
+    let solicitacoesAprovadas = JSON.parse(localStorage.getItem("solicitacoesAprovadas")) || [];
+    let solicitacoesPendentes = JSON.parse(localStorage.getItem("solicitacoesPendentes")) || [];
+
+    // Função para exportar a tabela de aprovações para Excel
+    function exportarParaExcel() {
+    // Converte a tabela HTML em uma planilha Excel
+     const wb = XLSX.utils.table_to_book(document.getElementById('tabelaAprovadas'), {sheet: "Solicitações Aprovadas"});
+      // Salva o arquivo com o nome especificado 
+     XLSX.writeFile(wb, "solicitacoes_aprovadas.xlsx");
+}
+    // Função chamada quando a página é carregada
+    window.onload = () => {
+    // Preenche a tabela de usuários cadastrados ao carregar a página
+      usuariosCadastrados.forEach(u => adicionarNaTabela(u.usuario, u.nivel));
+    // Preenche a tabela de solicitações aprovadas ao carregar a página
+      solicitacoesAprovadas.forEach(adicionarSolicitacaoAprovadaNaTabela);
+    };
+    // Função para mostrar a tela correspondente com base no ID
+    function mostrarTela(idTela) {
+    // Remove a classe "ativa" de todas as telas
+      document.querySelectorAll(".tela").forEach(t => t.classList.remove("ativa"));
+    // Adiciona a classe "ativa" à tela especificada
+      document.getElementById(idTela).classList.add("ativa");
+    }
+    // Função para validar login de usuário e senha
+    document.getElementById("formLogin").addEventListener("submit", function (e) {
+      e.preventDefault();
+      const usuario = document.getElementById("usuario").value.trim();
+      const senha = document.getElementById("senha").value.trim();
+
+    // Verifica se o usuário é o admin
+      if (usuario === "adm" && senha === "1234") {
+        mostrarTela("telaCadastro");
+        return;
+      }
+
+      // Verifica se o usuário e a senha estão corretos
+      const user = usuariosCadastrados.find(u => u.usuario === usuario && u.senha === senha);
+      if (user) {
+        sessionStorage.setItem("usuarioLogado", usuario); // Salva o usuário logado na sessão
+        document.getElementById("usuarioLogado").textContent = usuario;
+        mostrarTela("telaSolicitacao"); // Vai para a tela de solicitação
+      } else {
+        alert("Usuário ou senha incorretos.");
+      }
+    });
+
+    // Função para exibir a tela de cadastro de usuário, quando o botão de cadastro for clicado
+    document.getElementById("btnCadastro").addEventListener("click", () => {
+      const u = prompt("Usuário admin:");
+      const s = prompt("Senha:");
+    // Verifica se as credenciais são válidas para acesso
+      if (u === "adm" && s === "1234") mostrarTela("telaCadastro");
+      else alert("Acesso negado.");
+    });
+    // Função para exibir a tela de aprovação de solicitações
+    document.getElementById("btnAprovacao").addEventListener("click", () => {
+      const u = prompt("Usuário:");
+      const s = prompt("Senha:");
+      // Verifica se o usuário tem permissão para aprovar solicitações (nível 0 ou 1)
+      const user = usuariosCadastrados.find(uObj => uObj.usuario === u && uObj.senha === s);
+      if (user && (user.nivel === 0 || user.nivel === 1)) {
+        mostrarTela("telaAprovacao");
+        atualizarTabelaAprovar(); // Atualiza a tabela de aprovações
+      } else {
+        alert("Acesso negado à aprovação.");
+      }
+    });
+    // Função para cadastrar um novo usuário
+    document.getElementById("formCadastro").addEventListener("submit", function (e) {
+      e.preventDefault();
+      const usuario = document.getElementById("novoUsuario").value.trim();
+      const senha = document.getElementById("novaSenha").value.trim();
+      const nivel = parseInt(document.getElementById("nivelAcesso").value);
+
+    // Verifica se todos os campos estão preenchidos corretamente
+      if (usuario && senha && !isNaN(nivel)) {
+        const novo = { usuario, senha, nivel };
+        usuariosCadastrados.push(novo);
+        localStorage.setItem("usuarios", JSON.stringify(usuariosCadastrados));
+        adicionarNaTabela(usuario, nivel); // Adiciona o novo usuário na tabela
+        this.reset(); // Limpa o formulário
+      }
+    });
+
+    // Função para adicionar um usuário na tabela de usuários cadastrados
+    function adicionarNaTabela(usuario, nivel) {
+      const linha = document.createElement("tr");
+      linha.innerHTML = `
+        <td>${usuario}</td>
+        <td>****</td>
+        <td>${nivel}</td>
+        <td><span class="excluir" onclick="removerUsuario('${usuario}', this)">🗑️</span></td>`;
+      document.querySelector("#tabelaUsuarios tbody").appendChild(linha);
+    }
+
+    // Função para remover um usuário da tabela e do localStorage
+    function removerUsuario(usuario, elemento) {
+      if (confirm(`Excluir usuário "${usuario}"?`)) {
+        usuariosCadastrados = usuariosCadastrados.filter(u => u.usuario !== usuario);
+        localStorage.setItem("usuarios", JSON.stringify(usuariosCadastrados));
+        elemento.parentElement.parentElement.remove();
+      }
+    }
+
+    // Função para enviar uma solicitação de material
+    document.getElementById("formSolicitacao").addEventListener("submit", function (e) {
+      e.preventDefault();
+      const solicitacao = {
+        objetoTecnico: document.getElementById("objetoTecnico").value,
+        oQue: document.getElementById("oQue").value,
+        quantidade: document.getElementById("quantidade").value,
+        porQue: document.getElementById("porQue").value,
+        quando: document.getElementById("quando").value,
+        como: document.getElementById("como").value,
+        ccEntrega: document.getElementById("ccEntrega").value,
+        om: document.getElementById("om").value,
+        solicitante: document.getElementById("solicitante").value,
+        supervisor: document.getElementById("supervisor").value
+      };
+
+      solicitacoesPendentes.push(solicitacao);
+      localStorage.setItem("solicitacoesPendentes", JSON.stringify(solicitacoesPendentes));
+      alert("Solicitação enviada!");
+      this.reset();
+    });
+
+    // Função para atualizar a tabela de aprovações com as solicitações pendentes
+    function atualizarTabelaAprovar() {
+  const tbody = document.querySelector("#tabelaAprovar tbody");
+  tbody.innerHTML = "";
+  solicitacoesPendentes.forEach((s, index) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${s.objetoTecnico}</td>
+      <td>${s.oQue}</td>
+      <td>${s.quantidade}</td>
+      <td>${s.porQue}</td>
+      <td>${s.quando}</td>
+      <td>${s.como}</td>
+      <td>${s.ccEntrega}</td>
+      <td>${s.om}</td>
+      <td>${s.solicitante}</td>
+      <td>${s.supervisor}</td>
+      <td>
+        <span class="btn-aprovar" onclick="aprovarSolicitacao(${index})">✔️</span>
+        <span class="btn-rejeitar" onclick="rejeitarSolicitacao(${index})">❌</span>
+        <span class="btn-editar" onclick="editarSolicitacao(${index})">✏️</span>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+function editarSolicitacao(index) {
+  let s = solicitacoesPendentes[index];
+
+  // Prompts para cada campo
+  s.objetoTecnico = prompt("Editar Objeto Técnico:", s.objetoTecnico) ?? s.objetoTecnico;
+  s.oQue = prompt("Editar O Quê:", s.oQue) ?? s.oQue;
+  s.quantidade = prompt("Editar Quantidade:", s.quantidade) ?? s.quantidade;
+  s.porQue = prompt("Editar Por Quê:", s.porQue) ?? s.porQue;
+  s.quando = prompt("Editar Quando:", s.quando) ?? s.quando;
+  s.como = prompt("Editar Como:", s.como) ?? s.como;
+  s.ccEntrega = prompt("Editar CC/Entrega:", s.ccEntrega) ?? s.ccEntrega;
+  s.om = prompt("Editar OM:", s.om) ?? s.om;
+  s.solicitante = prompt("Editar Solicitante:", s.solicitante) ?? s.solicitante;
+  s.supervisor = prompt("Editar Supervisor:", s.supervisor) ?? s.supervisor;
+
+  // Atualiza localStorage e a tabela
+  localStorage.setItem("solicitacoesPendentes", JSON.stringify(solicitacoesPendentes));
+  atualizarTabelaAprovar();
+}
+
+
+
+    // Função para aprovar uma solicitação e movê-la para a lista de aprovadas
+    function aprovarSolicitacao(index) {
+      const solicitacao = solicitacoesPendentes.splice(index, 1)[0];
+      solicitacao.data = new Date().toLocaleString();
+      solicitacoesAprovadas.push(solicitacao);
+      localStorage.setItem("solicitacoesPendentes", JSON.stringify(solicitacoesPendentes));
+      localStorage.setItem("solicitacoesAprovadas", JSON.stringify(solicitacoesAprovadas));
+      adicionarSolicitacaoAprovadaNaTabela(solicitacao);
+      atualizarTabelaAprovar();
+    }
+
+    // Função para rejeitar uma solicitação
+    function rejeitarSolicitacao(index) {
+      if (confirm("Deseja rejeitar esta solicitação?")) {
+        solicitacoesPendentes.splice(index, 1);
+        localStorage.setItem("solicitacoesPendentes", JSON.stringify(solicitacoesPendentes));
+        atualizarTabelaAprovar();
+      }
+    }
+
+    // Função para adicionar uma solicitação aprovada na tabela
+    function adicionarSolicitacaoAprovadaNaTabela(s) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${s.objetoTecnico}</td><td>${s.oQue}</td><td>${s.quantidade}</td><td>${s.porQue}</td>
+        <td>${s.quando}</td><td>${s.como}</td><td>${s.ccEntrega}</td><td>${s.om}</td>
+        <td>${s.solicitante}</td><td>${s.supervisor}</td><td>${s.data}</td>`;
+      document.querySelector("#tabelaAprovadas tbody").appendChild(tr);
+    }
+
+    function editarSolicitacao(index) {
+  const s = solicitacoesPendentes[index];
+
+  // Para cada campo, usar prompt com valor atual como padrão
+  s.objetoTecnico = prompt("Editar Objeto Técnico:", s.objetoTecnico) || s.objetoTecnico;
+  s.oQue = prompt("Editar O Quê:", s.oQue) || s.oQue;
+  s.quantidade = prompt("Editar Quantidade:", s.quantidade) || s.quantidade;
+  s.porQue = prompt("Editar Por Quê:", s.porQue) || s.porQue;
+  s.quando = prompt("Editar Quando:", s.quando) || s.quando;
+  s.como = prompt("Editar Como:", s.como) || s.como;
+  s.ccEntrega = prompt("Editar CC/Entrega:", s.ccEntrega) || s.ccEntrega;
+  s.om = prompt("Editar OM:", s.om) || s.om;
+  s.solicitante = prompt("Editar Solicitante:", s.solicitante) || s.solicitante;
+  s.supervisor = prompt("Editar Supervisor:", s.supervisor) || s.supervisor;
+
+  // Atualiza localStorage e a tabela
+  localStorage.setItem("solicitacoesPendentes", JSON.stringify(solicitacoesPendentes));
+  atualizarTabelaAprovar();
+}
+
+  </script>
+</body>
+</html>
